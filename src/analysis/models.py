@@ -12,6 +12,10 @@ class Term(BaseModel):
 class AnalysisReq(BaseModel):
     """
     for ctb pos, NR and NN turns out to be useful for keywords
+    NN: 支付宝，财付通
+    NR: 其他专有名词
+    VV: 动词，大部分没用，少数可能有用 e.g. 支付, 汇付
+    JJ, 其他名词修饰语 大部分没用，有用的有 e.g. 大型, 连锁，二手
     # https://hanlp.hankcs.com/docs/annotations/pos/ctb.html
     """
     text: str

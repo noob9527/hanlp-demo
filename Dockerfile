@@ -34,6 +34,7 @@ RUN mkdir -p ${HANLP_HOME}
 
 # Pre-download all required models
 RUN uv run python -c 'import hanlp; \
+    hanlp.load(hanlp.pretrained.tok.COARSE_ELECTRA_SMALL_ZH); \
     hanlp.load(hanlp.pretrained.tok.FINE_ELECTRA_SMALL_ZH); \
     hanlp.load(hanlp.pretrained.ner.MSRA_NER_ELECTRA_SMALL_ZH); \
     hanlp.load(hanlp.pretrained.pos.CTB9_POS_ELECTRA_SMALL); \
