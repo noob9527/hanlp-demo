@@ -1,0 +1,30 @@
+FROM cjie.eu.org/python:3.11-slim
+
+WORKDIR /app
+
+COPY requirements.txt /app/requirements.txt
+
+# set aliyun mirror
+# RUN pip config set global.index-url https://mirrors.aliyun.com/pypi/simple
+
+RUN pip install --no-cache-dir -r /app/requirements.txt
+
+# Then, add the rest of the project source code and install it
+# Installing separately from its dependencies allows optimal layer caching
+COPY ./src /app/src
+
+# Set HANLP_HOME environment variable
+ENV HANLP_HOME=/app/hanlp
+
+# Create directory for HanLP models
+RUN mkdir -p ${HANLP_HOME}
+
+# Pre-download all required models
+RUN python -c 'import hanlp; \
+    hanlp.load(hanlp.pretrained.tok.FINE_ELECTRA_SMALL_ZH); \
+    hanlp.load(hanlp.pretrained.ner.MSRA_NER_ELECTRA_SMALL_ZH); \
+    hanlp.load(hanlp.pretrained.pos.CTB9_POS_ELECTRA_SMALL); \
+    hanlp.load(hanlp.pretrained.pos.PKU_POS_ELECTRA_SMALL)'
+
+# CMD ["fastapi", "run", "src/server.py", "--port", "80"]
+CMD ["uvicorn", "src.server:app", "--host", "0.0.0.0", "--port", "80"]

@@ -5,12 +5,17 @@ import uvicorn
 from fastapi import FastAPI
 from pydantic import BaseModel
 
-from hanlp_util import HanLPUtil
-from analysis.analysis import analysis
-from analysis.models import AnalysisReq, AnalysisResponse
+from .hanlp_util import HanLPUtil
+from .analysis.analysis import analysis
+from .analysis.models import AnalysisReq, AnalysisResponse
 
 app = FastAPI(title="HanLP Server")
 nlp = HanLPUtil()
+
+
+@app.get("/health")
+async def health_check():
+    return {"status": "ok"}
 
 
 class TextRequest(BaseModel):
@@ -21,9 +26,6 @@ class TextRequest(BaseModel):
 async def parse(request: TextRequest):
     res = nlp.parse(request.text)
     return res
-    # try:
-    # except Exception as e:
-    #     raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.post("/analysis")
