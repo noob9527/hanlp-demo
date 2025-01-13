@@ -32,3 +32,11 @@ class NamedEntity(BaseModel):
 class AnalysisResponse(BaseModel):
     terms: List[Term]
     named_entities: Optional[List[NamedEntity]]
+
+
+class FineCoarseAnalysisResponse(BaseModel):
+    """
+    同时包含细粒度和粗粒度的分析结果
+    """
+    fine: AnalysisResponse
+    coarse: AnalysisResponse

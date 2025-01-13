@@ -2,7 +2,7 @@ from typing import List, Tuple, Optional, Set
 
 import hanlp
 
-from src.analysis.models import AnalysisResponse, Term, NamedEntity
+from src.analysis.models import AnalysisResponse, Term, NamedEntity, FineCoarseAnalysisResponse
 
 TOKEN = "token"
 POS_CTB = "pos_ctb"
@@ -90,12 +90,14 @@ def _filter_named_entities(
     return [item for item in items if item[1] == 'ORGANIZATION']
 
 
-def analysis(
-        text: str,
+def _process_analysis_result(
+        docs: dict,
         allow_pos_ctb: Optional[Set[str]] = None,
         allow_pos_pku: Optional[Set[str]] = None,
 ) -> AnalysisResponse:
-    docs = __fine_analysis_pipeline(text)
+    """
+    处理分析结果，提取terms和named entities
+    """
     terms = _filter_terms(
         docs[TERMS],
         allow_pos_ctb=allow_pos_ctb,
@@ -115,4 +117,42 @@ def analysis(
     return AnalysisResponse(
         terms=terms,
         named_entities=ne_response
+    )
+
+
+def fine_analysis(
+        text: str,
+        allow_pos_ctb: Optional[Set[str]] = None,
+        allow_pos_pku: Optional[Set[str]] = None,
+) -> AnalysisResponse:
+    """
+    使用细粒度分词进行分析
+    """
+    docs = __fine_analysis_pipeline(text)
+    return _process_analysis_result(docs, allow_pos_ctb, allow_pos_pku)
+
+
+def coarse_analysis(
+        text: str,
+        allow_pos_ctb: Optional[Set[str]] = None,
+        allow_pos_pku: Optional[Set[str]] = None,
+) -> AnalysisResponse:
+    """
+    使用粗粒度分词进行分析
+    """
+    docs = __coarse_analysis_pipeline(text)
+    return _process_analysis_result(docs, allow_pos_ctb, allow_pos_pku)
+
+
+def fine_coarse_analysis(
+        text: str,
+        allow_pos_ctb: Optional[Set[str]] = None,
+        allow_pos_pku: Optional[Set[str]] = None,
+) -> FineCoarseAnalysisResponse:
+    """
+    同时进行细粒度和粗粒度分词分析
+    """
+    return FineCoarseAnalysisResponse(
+        fine=fine_analysis(text, allow_pos_ctb, allow_pos_pku),
+        coarse=coarse_analysis(text, allow_pos_ctb, allow_pos_pku)
     )

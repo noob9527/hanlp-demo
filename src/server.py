@@ -6,8 +6,8 @@ from fastapi import FastAPI
 from pydantic import BaseModel
 
 from .hanlp_util import HanLPUtil
-from .analysis.analysis import analysis
-from .analysis.models import AnalysisReq, AnalysisResponse
+from .analysis.analysis import fine_analysis, coarse_analysis, fine_coarse_analysis
+from .analysis.models import AnalysisReq, AnalysisResponse, FineCoarseAnalysisResponse
 
 app = FastAPI(title="HanLP Server")
 nlp = HanLPUtil()
@@ -28,9 +28,36 @@ async def parse(request: TextRequest):
     return res
 
 
-@app.post("/analysis")
-async def analyze_keywords(request: AnalysisReq) -> AnalysisResponse:
-    return analysis(
+@app.post("/analysis/fine")
+async def analyze_fine(request: AnalysisReq) -> AnalysisResponse:
+    """
+    使用细粒度分词进行分析
+    """
+    return fine_analysis(
+        text=request.text,
+        allow_pos_ctb=request.allow_pos_ctb,
+        allow_pos_pku=request.allow_pos_pku,
+    )
+
+
+@app.post("/analysis/coarse")
+async def analyze_coarse(request: AnalysisReq) -> AnalysisResponse:
+    """
+    使用粗粒度分词进行分析
+    """
+    return coarse_analysis(
+        text=request.text,
+        allow_pos_ctb=request.allow_pos_ctb,
+        allow_pos_pku=request.allow_pos_pku,
+    )
+
+
+@app.post("/analysis/fine-coarse")
+async def analyze_fine_coarse(request: AnalysisReq) -> FineCoarseAnalysisResponse:
+    """
+    同时进行细粒度和粗粒度分词分析
+    """
+    return fine_coarse_analysis(
         text=request.text,
         allow_pos_ctb=request.allow_pos_ctb,
         allow_pos_pku=request.allow_pos_pku,

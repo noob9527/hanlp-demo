@@ -1,10 +1,10 @@
 import unittest
 
 from src.analysis.analysis import _filter_terms, _filter_named_entities, \
-    analysis
+    fine_analysis, coarse_analysis, fine_coarse_analysis
 
 
-class TestKeywordsAnalysis(unittest.TestCase):
+class TestAnalysis(unittest.TestCase):
     def test_filter_named_entities(self):
         # Test case with mixed entity types
         test_entities = [
@@ -32,14 +32,61 @@ class TestKeywordsAnalysis(unittest.TestCase):
         result = _filter_terms([])
         self.assertEqual(result, [])
 
-    def test_keywords_analysis_basic(self):
-        # Test with a simple Chinese text
-        test_text = """
-        Q4：咱们一共有多少个供应商？都是谁？
-        A：现在有三大类的AI芯片供应商。第一大类是国际的供应商，以英伟达为首，英特尔、AMD也是，谷歌税控已经退出，我们跟它在西欧市场有合作，在中国市场进行了退出。2023年，从出货量上来讲，英伟达占了68.4%，出货金额占73.2%；英特尔2023年出货量占了0.3%，AMD占了0.4%，这三家加起来占了69%左右。第二大类是国内相对独立的AI芯片厂商，像HW、寒武纪、碧润、摩尔、东菱、海光、天数、燧原等。HW的份额排在第一位，2023年出货量占比在15%到17%之间。第三类是以互联网大厂自研为主的，像百度的昆仑芯，占了6.1%的份额，还包括阿里的含光，腾讯的自销，以及给字节做的定制化。
+    def test_fine_analysis(self):
         """
-        result = analysis(test_text)
+        测试细粒度分词分析
+        """
+        text = "英伟达和谷歌是世界知名的科技公司"
+        result = fine_analysis(text)
+        # 确保返回了分词结果
+        self.assertTrue(len(result.terms) > 0)
+        # 确保识别出了组织实体
+        self.assertTrue(any(ne.entity == "英伟达" for ne in result.named_entities))
+        self.assertTrue(any(ne.entity == "谷歌" for ne in result.named_entities))
+
+    def test_coarse_analysis(self):
+        """
+        测试粗粒度分词分析
+        """
+        text = "麻烦找一下新氧相关的专家：1）新氧公司的各种专家，包括高管、负责内容的、负责BD的等；2）大众点评、天猫、百度负责医美广告的；3）更美、美呗等竞对；4）医美机构负责广告投放的"
+        result = coarse_analysis(text)
         print(result)
+        # 确保返回了分词结果
+        self.assertTrue(len(result.terms) > 0)
+        # 检查粗分是否正确处理了"更美"和"美呗"
+        self.assertTrue(any(term.token == "更美" for term in result.terms))
+        self.assertTrue(any(term.token == "美呗" for term in result.terms))
+
+    def test_fine_coarse_analysis(self):
+        """
+        测试同时进行细粒度和粗粒度分词
+        """
+        text = "杭州甘其食是一家连锁包子店"
+        result = fine_coarse_analysis(text)
+
+        # 确保两种分析都返回了结果
+        self.assertTrue(len(result.fine.terms) > 0)
+        self.assertTrue(len(result.coarse.terms) > 0)
+
+        # 细分可能会将"甘其食"分开
+        fine_tokens = [term.token for term in result.fine.terms]
+        # 粗分可能会将"甘其食"作为整体
+        coarse_tokens = [term.token for term in result.coarse.terms]
+
+        self.assertNotEqual(fine_tokens, coarse_tokens, "细分和粗分的结果应该有所不同")
+
+    def test_pos_filtering(self):
+        """
+        测试词性过滤功能
+        """
+        text = "英伟达公司的人工智能技术"
+        # 只保留名词
+        result = fine_analysis(text, allow_pos_ctb={'NN', 'NR'})
+
+        # 确保所有返回的词都是名词
+        for term in result.terms:
+            self.assertIn(term.pos_ctb, {'NN', 'NR'},
+                         f"词 '{term.token}' 的词性 '{term.pos_ctb}' 不是名词")
 
 
 if __name__ == '__main__':
