@@ -14,7 +14,7 @@ nlp = HanLPUtil()
 
 
 @app.get("/health")
-async def health_check():
+def health_check():
     return {"status": "ok"}
 
 
@@ -23,13 +23,13 @@ class TextRequest(BaseModel):
 
 
 @app.post("/parse")
-async def parse(request: TextRequest):
+def parse(request: TextRequest):
     res = nlp.parse(request.text)
     return res
 
 
 @app.post("/analysis/fine")
-async def analyze_fine(request: AnalysisReq) -> AnalysisResponse:
+def analyze_fine(request: AnalysisReq) -> AnalysisResponse:
     """
     使用细粒度分词进行分析
     """
@@ -41,7 +41,7 @@ async def analyze_fine(request: AnalysisReq) -> AnalysisResponse:
 
 
 @app.post("/analysis/coarse")
-async def analyze_coarse(request: AnalysisReq) -> AnalysisResponse:
+def analyze_coarse(request: AnalysisReq) -> AnalysisResponse:
     """
     使用粗粒度分词进行分析
     """
@@ -53,7 +53,7 @@ async def analyze_coarse(request: AnalysisReq) -> AnalysisResponse:
 
 
 @app.post("/analysis/fine-coarse")
-async def analyze_fine_coarse(request: AnalysisReq) -> FineCoarseAnalysisResponse:
+def analyze_fine_coarse(request: AnalysisReq) -> FineCoarseAnalysisResponse:
     """
     同时进行细粒度和粗粒度分词分析
     """
