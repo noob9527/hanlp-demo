@@ -42,24 +42,23 @@ def analyze_fine(request: AnalysisReq) -> AnalysisResponse:
     return fine_analysis(
         text=request.text,
         allow_pos_ctb=request.allow_pos_ctb,
-        allow_pos_pku=request.allow_pos_pku,
+        allow_pos_pku=request.allow_pos_pku
     )
 
 
 @router.post("/analysis/fine/batch")
 def analyze_fine_batch(request: BatchAnalysisReq) -> BatchAnalysisResponse:
     """
-    使用细粒度分词进行批量分析 - with parallel processing
+    使用细粒度分词进行批量分析
     """
-    with ThreadPoolExecutor() as executor:
-        # Create a partial function with the fixed arguments
-        analyze_func = partial(
-            fine_analysis,
+    results = [
+        fine_analysis(
+            text=text,
             allow_pos_ctb=request.allow_pos_ctb,
             allow_pos_pku=request.allow_pos_pku
         )
-        # Map the texts to the analysis function in parallel
-        results = list(executor.map(analyze_func, request.texts))
+        for text in request.texts
+    ]
     return BatchAnalysisResponse(results=results)
 
 
@@ -71,22 +70,23 @@ def analyze_coarse(request: AnalysisReq) -> AnalysisResponse:
     return coarse_analysis(
         text=request.text,
         allow_pos_ctb=request.allow_pos_ctb,
-        allow_pos_pku=request.allow_pos_pku,
+        allow_pos_pku=request.allow_pos_pku
     )
 
 
 @router.post("/analysis/coarse/batch")
 def analyze_coarse_batch(request: BatchAnalysisReq) -> BatchAnalysisResponse:
     """
-    使用粗粒度分词进行批量分析 - with parallel processing
+    使用粗粒度分词进行批量分析
     """
-    with ThreadPoolExecutor() as executor:
-        analyze_func = partial(
-            coarse_analysis,
+    results = [
+        coarse_analysis(
+            text=text,
             allow_pos_ctb=request.allow_pos_ctb,
             allow_pos_pku=request.allow_pos_pku
         )
-        results = list(executor.map(analyze_func, request.texts))
+        for text in request.texts
+    ]
     return BatchAnalysisResponse(results=results)
 
 
@@ -98,22 +98,23 @@ def analyze_fine_coarse(request: AnalysisReq) -> FineCoarseAnalysisResponse:
     return fine_coarse_analysis(
         text=request.text,
         allow_pos_ctb=request.allow_pos_ctb,
-        allow_pos_pku=request.allow_pos_pku,
+        allow_pos_pku=request.allow_pos_pku
     )
 
 
 @router.post("/analysis/fine-coarse/batch")
 def analyze_fine_coarse_batch(request: BatchAnalysisReq) -> BatchFineCoarseAnalysisResponse:
     """
-    同时进行细粒度和粗粒度分词的批量分析 - with parallel processing
+    同时进行细粒度和粗粒度分词的批量分析
     """
-    with ThreadPoolExecutor() as executor:
-        analyze_func = partial(
-            fine_coarse_analysis,
+    results = [
+        fine_coarse_analysis(
+            text=text,
             allow_pos_ctb=request.allow_pos_ctb,
             allow_pos_pku=request.allow_pos_pku
         )
-        results = list(executor.map(analyze_func, request.texts))
+        for text in request.texts
+    ]
     return BatchFineCoarseAnalysisResponse(results=results)
 
 
