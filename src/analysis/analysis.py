@@ -34,7 +34,7 @@ NAMED_ENTITIES = "named_entities"
 TERMS = "terms"
 
 # Text length threshold for using paragraph pipeline (in characters)
-TEXT_LENGTH_THRESHOLD = 80
+TEXT_LENGTH_THRESHOLD = 120
 
 # Load models with device info logging
 __tok_fine = hanlp.load(hanlp.pretrained.tok.FINE_ELECTRA_SMALL_ZH)
