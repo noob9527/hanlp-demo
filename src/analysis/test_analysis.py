@@ -2,7 +2,7 @@ import unittest
 
 from src.analysis.analysis import _filter_terms, _filter_named_entities, \
     fine_analysis, coarse_analysis, fine_coarse_analysis, \
-    _should_use_paragraph_pipeline, TEXT_LENGTH_THRESHOLD
+    _should_use_paragraph_pipeline, TEXT_LENGTH_THRESHOLD, has_gpu
 
 
 class TestAnalysis(unittest.TestCase):
@@ -115,6 +115,12 @@ class TestAnalysis(unittest.TestCase):
         # Test short text with newlines
         short_text_with_newline = "第一行\n第二行"
         self.assertFalse(_should_use_paragraph_pipeline(short_text_with_newline))
+
+    def test_gpu_check(self):
+        """Test that GPU availability check runs without error"""
+        gpu_available = has_gpu()
+        print(gpu_available)
+        assert isinstance(gpu_available, bool)
 
 
 if __name__ == '__main__':

@@ -1,9 +1,29 @@
 from typing import List, Tuple, Optional, Set
-
+import logging
 import hanlp
+import torch
 
 from src.analysis.models import AnalysisResponse, Term, NamedEntity, \
     FineCoarseAnalysisResponse
+
+# Add logging configuration near the top of the file
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+
+def has_gpu() -> bool:
+    """
+    Check if a GPU is available for use
+    Returns: True if GPU is available, False otherwise
+    """
+    return torch.cuda.is_available()
+
+
+# Add this before loading models
+if has_gpu():
+    logger.info("GPU is available - models will run on GPU")
+else:
+    logger.info("No GPU detected - models will run on CPU")
 
 # TOKEN_WITH_SPAN = "token_with_span"
 TOKEN = "token"
@@ -15,7 +35,10 @@ TERMS = "terms"
 # Text length threshold for using paragraph pipeline (in characters)
 TEXT_LENGTH_THRESHOLD = 80
 
+# Load models with device info logging
 __tok_fine = hanlp.load(hanlp.pretrained.tok.FINE_ELECTRA_SMALL_ZH)
+logger.info(f"Fine tokenizer loaded on device: {__tok_fine.device}")
+
 # 有时 粗分表现更好
 # e.g. 麻烦找一下新氧相关的专家：
 # 1）新氧公司的各种专家，包括高管、负责内容的、负责BD的等；
@@ -28,6 +51,7 @@ __tok_fine = hanlp.load(hanlp.pretrained.tok.FINE_ELECTRA_SMALL_ZH)
 # 巴比食品、三津汤包、庆丰包子、武汉好礼客、上海早阳、南京青露、杭州甘其食等中国早餐包子店行业从业公司
 # 杭州甘其食 可能更应该算作两个 token.
 __tok_coarse = hanlp.load(hanlp.pretrained.tok.COARSE_ELECTRA_SMALL_ZH)
+logger.info(f"Coarse tokenizer loaded on device: {__tok_coarse.device}")
 
 # HanLP支持输出每个单词在文本中的原始位置，以便用于搜索引擎等场景。
 # 在词法分析中，非语素字符（空格、换行、制表符等）会被剔除，此时需要额外的位置信息才能定位每个单词
@@ -39,8 +63,13 @@ __tok_coarse = hanlp.load(hanlp.pretrained.tok.COARSE_ELECTRA_SMALL_ZH)
 # __tok_coarse.config.output_spans = True
 
 __ner = hanlp.load(hanlp.pretrained.ner.MSRA_NER_ELECTRA_SMALL_ZH)
+logger.info(f"NER model loaded on device: {__ner.device}")
+
 __pos_ctb9 = hanlp.load(hanlp.pretrained.pos.CTB9_POS_ELECTRA_SMALL)
+logger.info(f"CTB POS tagger loaded on device: {__pos_ctb9.device}")
+
 __pos_pku = hanlp.load(hanlp.pretrained.pos.PKU_POS_ELECTRA_SMALL)
+logger.info(f"PKU POS tagger loaded on device: {__pos_pku.device}")
 
 
 def __sum(sentences: List[str]):
