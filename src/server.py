@@ -2,18 +2,21 @@ import argparse
 from typing import List, Union
 
 import uvicorn
-from fastapi import FastAPI
+from fastapi import FastAPI, APIRouter
 from pydantic import BaseModel
 
-from .hanlp_util import HanLPUtil
 from .analysis.analysis import fine_analysis, coarse_analysis, fine_coarse_analysis
-from .analysis.models import AnalysisReq, AnalysisResponse, FineCoarseAnalysisResponse
+from .analysis.models import AnalysisReq, AnalysisResponse, \
+    FineCoarseAnalysisResponse
 
 app = FastAPI(title="HanLP Server")
-nlp = HanLPUtil()
+router = APIRouter(prefix="/api/v1")
 
 
-@app.get("/health")
+# nlp = HanLPUtil()
+
+
+@router.get("/health")
 def health_check():
     return {"status": "ok"}
 
@@ -22,13 +25,13 @@ class TextRequest(BaseModel):
     text: Union[str, List[str]]
 
 
-@app.post("/parse")
-def parse(request: TextRequest):
-    res = nlp.parse(request.text)
-    return res
+# @app.post("/parse")
+# def parse(request: TextRequest):
+#     res = nlp.parse(request.text)
+#     return res
 
 
-@app.post("/analysis/fine")
+@router.post("/analysis/fine")
 def analyze_fine(request: AnalysisReq) -> AnalysisResponse:
     """
     使用细粒度分词进行分析
@@ -40,7 +43,7 @@ def analyze_fine(request: AnalysisReq) -> AnalysisResponse:
     )
 
 
-@app.post("/analysis/coarse")
+@router.post("/analysis/coarse")
 def analyze_coarse(request: AnalysisReq) -> AnalysisResponse:
     """
     使用粗粒度分词进行分析
@@ -52,7 +55,7 @@ def analyze_coarse(request: AnalysisReq) -> AnalysisResponse:
     )
 
 
-@app.post("/analysis/fine-coarse")
+@router.post("/analysis/fine-coarse")
 def analyze_fine_coarse(request: AnalysisReq) -> FineCoarseAnalysisResponse:
     """
     同时进行细粒度和粗粒度分词分析
@@ -71,6 +74,10 @@ def parse_args():
     parser.add_argument('--host', type=str, default="0.0.0.0",
                         help='Host to bind the server to (default: 0.0.0.0)')
     return parser.parse_args()
+
+
+# Include the router in the main app
+app.include_router(router)
 
 
 if __name__ == "__main__":
