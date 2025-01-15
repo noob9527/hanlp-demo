@@ -1,7 +1,8 @@
 import unittest
 
 from src.analysis.analysis import _filter_terms, _filter_named_entities, \
-    fine_analysis, coarse_analysis, fine_coarse_analysis
+    fine_analysis, coarse_analysis, fine_coarse_analysis, \
+    _should_use_paragraph_pipeline, TEXT_LENGTH_THRESHOLD
 
 
 class TestAnalysis(unittest.TestCase):
@@ -50,7 +51,7 @@ class TestAnalysis(unittest.TestCase):
 
         注意，因为分句会丢失上下文信息，所以可以在一定程度上对分词结果有不好的影响
         e.g. 2）大众点评、天猫、百度负责医美广告的； 3）更美、美呗等竞对；
-        在粗分情况下 2)和3) 在不在一行，决定了“更美”“美呗”能否被分对。。
+        在粗分情况下 2)和3) 在不在一行，决定了"更美"和"美呗"能否被分对。。
         """
         text = """麻烦找一下新氧相关的专家：
         1）新氧公司的各种专家，包括高管、负责内容的、负责BD的等；
@@ -94,6 +95,26 @@ class TestAnalysis(unittest.TestCase):
         for term in result.terms:
             self.assertIn(term.pos_ctb, {'NN', 'NR'},
                          f"词 '{term.token}' 的词性 '{term.pos_ctb}' 不是名词")
+
+    def test_should_use_paragraph_pipeline(self):
+        """
+        Test the logic for determining whether to use paragraph pipeline
+        """
+        # Test short text without newlines
+        short_text = "这是一个短文本"
+        self.assertFalse(_should_use_paragraph_pipeline(short_text))
+
+        # Test text exactly at threshold
+        text_at_threshold = "字" * TEXT_LENGTH_THRESHOLD
+        self.assertFalse(_should_use_paragraph_pipeline(text_at_threshold))
+
+        # Test text exceeding threshold
+        long_text = "字" * (TEXT_LENGTH_THRESHOLD + 1)
+        self.assertTrue(_should_use_paragraph_pipeline(long_text))
+
+        # Test short text with newlines
+        short_text_with_newline = "第一行\n第二行"
+        self.assertFalse(_should_use_paragraph_pipeline(short_text_with_newline))
 
 
 if __name__ == '__main__':

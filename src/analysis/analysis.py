@@ -12,6 +12,9 @@ POS_PKU = "pos_pku"
 NAMED_ENTITIES = "named_entities"
 TERMS = "terms"
 
+# Text length threshold for using paragraph pipeline (in characters)
+TEXT_LENGTH_THRESHOLD = 80
+
 __tok_fine = hanlp.load(hanlp.pretrained.tok.FINE_ELECTRA_SMALL_ZH)
 # 有时 粗分表现更好
 # e.g. 麻烦找一下新氧相关的专家：
@@ -93,8 +96,8 @@ def _filter_terms(
 
 # 注意，因为分句会丢失上下文信息，所以可以在一定程度上对分词结果有不好的影响
 # e.g. 2）大众点评、天猫、百度负责医美广告的； 3）更美、美呗等竞对；
-# 在粗分情况下 2)和3) 在不在一行，决定了“更美”“美呗”能否被分对。。
-__fine_analysis_pipeline = hanlp.pipeline() \
+# 在粗分情况下 2)和3) 在不在一行，决定了"更美""美呗"能否被分对。。
+__fine_analysis_paragraph_pipeline = hanlp.pipeline() \
     .append(hanlp.utils.rules.split_sentence, output_key='sentences') \
     .append(__tok_fine, input_key='sentences', output_key=TOKEN) \
     .append(__pos_ctb9, input_key=TOKEN, output_key=POS_CTB) \
@@ -102,6 +105,14 @@ __fine_analysis_pipeline = hanlp.pipeline() \
     .append(__ner, input_key=TOKEN, output_key=NAMED_ENTITIES) \
     .append(__sum, input_key=NAMED_ENTITIES, output_key=NAMED_ENTITIES) \
     .append(__zip_sentence_batch, input_key=(TOKEN, POS_CTB, POS_PKU),
+            output_key=TERMS)
+
+__fine_analysis_sentence_pipeline = hanlp.pipeline() \
+    .append(__tok_fine, output_key=TOKEN) \
+    .append(__pos_ctb9, input_key=TOKEN, output_key=POS_CTB) \
+    .append(__pos_pku, input_key=TOKEN, output_key=POS_PKU) \
+    .append(__ner, input_key=TOKEN, output_key=NAMED_ENTITIES) \
+    .append(__zip_sentence, input_key=(TOKEN, POS_CTB, POS_PKU),
             output_key=TERMS)
 
 # __fine_analysis_pipeline_with_span = hanlp.pipeline() \
@@ -115,7 +126,7 @@ __fine_analysis_pipeline = hanlp.pipeline() \
 #     .append(__zip_sentence_batch, input_key=(TOKEN_WITH_SPAN, POS_CTB, POS_PKU),
 #             output_key=TERMS)
 
-__coarse_analysis_pipeline = hanlp.pipeline() \
+__coarse_analysis_paragraph_pipeline = hanlp.pipeline() \
     .append(hanlp.utils.rules.split_sentence, output_key='sentences') \
     .append(__tok_coarse, input_key='sentences', output_key=TOKEN) \
     .append(__pos_ctb9, input_key=TOKEN, output_key=POS_CTB) \
@@ -123,6 +134,14 @@ __coarse_analysis_pipeline = hanlp.pipeline() \
     .append(__ner, input_key=TOKEN, output_key=NAMED_ENTITIES) \
     .append(__sum, input_key=NAMED_ENTITIES, output_key=NAMED_ENTITIES) \
     .append(__zip_sentence_batch, input_key=(TOKEN, POS_CTB, POS_PKU),
+            output_key=TERMS)
+
+__coarse_analysis_sentence_pipeline = hanlp.pipeline() \
+    .append(__tok_coarse, output_key=TOKEN) \
+    .append(__pos_ctb9, input_key=TOKEN, output_key=POS_CTB) \
+    .append(__pos_pku, input_key=TOKEN, output_key=POS_PKU) \
+    .append(__ner, input_key=TOKEN, output_key=NAMED_ENTITIES) \
+    .append(__zip_sentence, input_key=(TOKEN, POS_CTB, POS_PKU),
             output_key=TERMS)
 
 
@@ -168,15 +187,27 @@ def _process_analysis_result(
     )
 
 
+def _should_use_paragraph_pipeline(text: str) -> bool:
+    """
+    Determine whether to use paragraph pipeline based on text length.
+    Returns True if text length exceeds threshold
+    """
+    return len(text) > TEXT_LENGTH_THRESHOLD
+
+
 def fine_analysis(
         text: str,
         allow_pos_ctb: Optional[Set[str]] = None,
         allow_pos_pku: Optional[Set[str]] = None,
 ) -> AnalysisResponse:
     """
-    使用细粒度分词进行分析
+    使用细粒度分词进行分析。
+    当文本长度超过阈值时使用段落pipeline（会分句），否则使用句子pipeline（不分句）。
     """
-    docs = __fine_analysis_pipeline(text)
+    if _should_use_paragraph_pipeline(text):
+        docs = __fine_analysis_paragraph_pipeline(text)
+    else:
+        docs = __fine_analysis_sentence_pipeline(text)
     return _process_analysis_result(docs, allow_pos_ctb, allow_pos_pku)
 
 
@@ -186,9 +217,13 @@ def coarse_analysis(
         allow_pos_pku: Optional[Set[str]] = None,
 ) -> AnalysisResponse:
     """
-    使用粗粒度分词进行分析
+    使用粗粒度分词进行分析。
+    当文本长度超过阈值时使用段落pipeline（会分句），否则使用句子pipeline（不分句）。
     """
-    docs = __coarse_analysis_pipeline(text)
+    if _should_use_paragraph_pipeline(text):
+        docs = __coarse_analysis_paragraph_pipeline(text)
+    else:
+        docs = __coarse_analysis_sentence_pipeline(text)
     return _process_analysis_result(docs, allow_pos_ctb, allow_pos_pku)
 
 
