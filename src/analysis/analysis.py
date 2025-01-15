@@ -1,5 +1,6 @@
-from typing import List, Tuple, Optional, Set
 import logging
+from typing import List, Tuple, Optional, Set
+
 import hanlp
 import torch
 
@@ -72,7 +73,7 @@ __pos_pku = hanlp.load(hanlp.pretrained.pos.PKU_POS_ELECTRA_SMALL)
 logger.info(f"PKU POS tagger loaded on device: {__pos_pku.device}")
 
 
-def __sum(sentences: List[str]):
+def __sum(sentences: List):
     return sum(sentences, [])
 
 
@@ -95,12 +96,21 @@ def __zip_sentence(*args) -> List[Term]:
     return res
 
 
-def __zip_sentence_batch(*args) -> List[Term]:
+def __zip_for_paragraph(*args) -> List[Term]:
     token, pos_ctb9, pos_pku = args
     res = []
     for tok, pos9, posp in zip(token, pos_ctb9, pos_pku):
         ret = __zip_sentence(tok, pos9, posp)
         res.extend(ret)
+    return res
+
+
+def __zip_for_sentence(*args) -> List[List[Term]]:
+    token, pos_ctb9, pos_pku = args
+    res = []
+    for tok, pos9, posp in zip(token, pos_ctb9, pos_pku):
+        ret = __zip_sentence(tok, pos9, posp)
+        res.append(ret)
     return res
 
 
@@ -133,7 +143,7 @@ __fine_analysis_paragraph_pipeline = hanlp.pipeline() \
     .append(__pos_pku, input_key=TOKEN, output_key=POS_PKU) \
     .append(__ner, input_key=TOKEN, output_key=NAMED_ENTITIES) \
     .append(__sum, input_key=NAMED_ENTITIES, output_key=NAMED_ENTITIES) \
-    .append(__zip_sentence_batch, input_key=(TOKEN, POS_CTB, POS_PKU),
+    .append(__zip_for_paragraph, input_key=(TOKEN, POS_CTB, POS_PKU),
             output_key=TERMS)
 
 __fine_analysis_sentence_pipeline = hanlp.pipeline() \
@@ -141,7 +151,7 @@ __fine_analysis_sentence_pipeline = hanlp.pipeline() \
     .append(__pos_ctb9, input_key=TOKEN, output_key=POS_CTB) \
     .append(__pos_pku, input_key=TOKEN, output_key=POS_PKU) \
     .append(__ner, input_key=TOKEN, output_key=NAMED_ENTITIES) \
-    .append(__zip_sentence, input_key=(TOKEN, POS_CTB, POS_PKU),
+    .append(__zip_for_sentence, input_key=(TOKEN, POS_CTB, POS_PKU),
             output_key=TERMS)
 
 # __fine_analysis_pipeline_with_span = hanlp.pipeline() \
@@ -152,7 +162,7 @@ __fine_analysis_sentence_pipeline = hanlp.pipeline() \
 #     .append(__pos_pku, input_key=TOKEN, output_key=POS_PKU) \
 #     .append(__ner, input_key=TOKEN, output_key=NAMED_ENTITIES) \
 #     .append(__sum, input_key=NAMED_ENTITIES, output_key=NAMED_ENTITIES) \
-#     .append(__zip_sentence_batch, input_key=(TOKEN_WITH_SPAN, POS_CTB, POS_PKU),
+#     .append(__zip_for_paragraph, input_key=(TOKEN_WITH_SPAN, POS_CTB, POS_PKU),
 #             output_key=TERMS)
 
 __coarse_analysis_paragraph_pipeline = hanlp.pipeline() \
@@ -162,7 +172,7 @@ __coarse_analysis_paragraph_pipeline = hanlp.pipeline() \
     .append(__pos_pku, input_key=TOKEN, output_key=POS_PKU) \
     .append(__ner, input_key=TOKEN, output_key=NAMED_ENTITIES) \
     .append(__sum, input_key=NAMED_ENTITIES, output_key=NAMED_ENTITIES) \
-    .append(__zip_sentence_batch, input_key=(TOKEN, POS_CTB, POS_PKU),
+    .append(__zip_for_paragraph, input_key=(TOKEN, POS_CTB, POS_PKU),
             output_key=TERMS)
 
 __coarse_analysis_sentence_pipeline = hanlp.pipeline() \
@@ -170,7 +180,7 @@ __coarse_analysis_sentence_pipeline = hanlp.pipeline() \
     .append(__pos_ctb9, input_key=TOKEN, output_key=POS_CTB) \
     .append(__pos_pku, input_key=TOKEN, output_key=POS_PKU) \
     .append(__ner, input_key=TOKEN, output_key=NAMED_ENTITIES) \
-    .append(__zip_sentence, input_key=(TOKEN, POS_CTB, POS_PKU),
+    .append(__zip_for_sentence, input_key=(TOKEN, POS_CTB, POS_PKU),
             output_key=TERMS)
 
 
@@ -186,7 +196,27 @@ def _filter_named_entities(
     return [item for item in items if item[1] == 'ORGANIZATION']
 
 
-def _process_analysis_result(
+def _process_sentences(
+        docs: dict,
+        allow_pos_ctb: Optional[Set[str]] = None,
+        allow_pos_pku: Optional[Set[str]] = None,
+) -> List[AnalysisResponse]:
+    res = []
+    for terms, named_entities in zip(docs[TERMS], docs[NAMED_ENTITIES]):
+        tmp1 = {
+            TERMS: terms,
+            NAMED_ENTITIES: named_entities
+        }
+        tmp2 = _process_paragraph(
+            docs=tmp1,
+            allow_pos_ctb=allow_pos_ctb,
+            allow_pos_pku=allow_pos_pku
+        )
+        res.append(tmp2)
+    return res
+
+
+def _process_paragraph(
         docs: dict,
         allow_pos_ctb: Optional[Set[str]] = None,
         allow_pos_pku: Optional[Set[str]] = None,
@@ -224,20 +254,110 @@ def _should_use_paragraph_pipeline(text: str) -> bool:
     return len(text) > TEXT_LENGTH_THRESHOLD
 
 
+def _analysis_batch(
+        texts: List[str],
+        paragraph_pipeline,
+        sentence_pipeline,
+        allow_pos_ctb: Optional[Set[str]] = None,
+        allow_pos_pku: Optional[Set[str]] = None,
+) -> List[AnalysisResponse]:
+    """
+    Generic batch processing function for text analysis.
+
+    Args:
+        texts: List of input texts to analyze
+        paragraph_pipeline: Pipeline to use for long texts
+        sentence_pipeline: Pipeline to use for short texts
+        allow_pos_ctb: Optional set of allowed CTB POS tags to filter
+        allow_pos_pku: Optional set of allowed PKU POS tags to filter
+
+    Returns:
+        List of AnalysisResponse objects in the same order as input texts
+    """
+    # Split texts based on length threshold
+    long_texts = [text for text in texts if _should_use_paragraph_pipeline(text)]
+    short_texts = [text for text in texts if not _should_use_paragraph_pipeline(text)]
+
+    analysis_results = {}
+
+    # Process longer texts individually using paragraph pipeline
+    for text in long_texts:
+        pipeline_output = paragraph_pipeline(text)
+        analysis_result = _process_paragraph(
+            pipeline_output,
+            allow_pos_ctb=allow_pos_ctb,
+            allow_pos_pku=allow_pos_pku
+        )
+        analysis_results[text] = analysis_result
+
+    # Process shorter texts in batch using sentence pipeline
+    if short_texts:
+        pipeline_output = sentence_pipeline(short_texts)
+        batch_results = _process_sentences(
+            pipeline_output,
+            allow_pos_ctb=allow_pos_ctb,
+            allow_pos_pku=allow_pos_pku
+        )
+        # Map results back to their original texts
+        for text, result in zip(short_texts, batch_results):
+            analysis_results[text] = result
+
+    # Preserve original text order in output
+    return [analysis_results[text] for text in texts]
+
+
+def fine_analysis_batch(
+        texts: List[str],
+        allow_pos_ctb: Optional[Set[str]] = None,
+        allow_pos_pku: Optional[Set[str]] = None,
+) -> List[AnalysisResponse]:
+    return _analysis_batch(
+        texts,
+        __fine_analysis_paragraph_pipeline,
+        __fine_analysis_sentence_pipeline,
+        allow_pos_ctb,
+        allow_pos_pku
+    )
+
+
+def coarse_analysis_batch(
+        texts: List[str],
+        allow_pos_ctb: Optional[Set[str]] = None,
+        allow_pos_pku: Optional[Set[str]] = None,
+) -> List[AnalysisResponse]:
+    return _analysis_batch(
+        texts,
+        __coarse_analysis_paragraph_pipeline,
+        __coarse_analysis_sentence_pipeline,
+        allow_pos_ctb,
+        allow_pos_pku
+    )
+
+
+def fine_coarse_analysis_batch(
+        texts: List[str],
+        allow_pos_ctb: Optional[Set[str]] = None,
+        allow_pos_pku: Optional[Set[str]] = None,
+) -> List[FineCoarseAnalysisResponse]:
+    """
+    Batch process multiple texts using both fine and coarse-grained tokenization
+    """
+    fine_results = fine_analysis_batch(texts, allow_pos_ctb, allow_pos_pku)
+    coarse_results = coarse_analysis_batch(texts, allow_pos_ctb, allow_pos_pku)
+
+    return [
+        FineCoarseAnalysisResponse(fine=fine, coarse=coarse)
+        for fine, coarse in zip(fine_results, coarse_results)
+    ]
+
+
 def fine_analysis(
         text: str,
         allow_pos_ctb: Optional[Set[str]] = None,
         allow_pos_pku: Optional[Set[str]] = None,
 ) -> AnalysisResponse:
-    """
-    使用细粒度分词进行分析。
-    当文本长度超过阈值时使用段落pipeline（会分句），否则使用句子pipeline（不分句）。
-    """
-    if _should_use_paragraph_pipeline(text):
-        docs = __fine_analysis_paragraph_pipeline(text)
-    else:
-        docs = __fine_analysis_sentence_pipeline(text)
-    return _process_analysis_result(docs, allow_pos_ctb, allow_pos_pku)
+    results = fine_analysis_batch([text], allow_pos_ctb, allow_pos_pku)
+    return results[0]
 
 
 def coarse_analysis(
@@ -245,15 +365,8 @@ def coarse_analysis(
         allow_pos_ctb: Optional[Set[str]] = None,
         allow_pos_pku: Optional[Set[str]] = None,
 ) -> AnalysisResponse:
-    """
-    使用粗粒度分词进行分析。
-    当文本长度超过阈值时使用段落pipeline（会分句），否则使用句子pipeline（不分句）。
-    """
-    if _should_use_paragraph_pipeline(text):
-        docs = __coarse_analysis_paragraph_pipeline(text)
-    else:
-        docs = __coarse_analysis_sentence_pipeline(text)
-    return _process_analysis_result(docs, allow_pos_ctb, allow_pos_pku)
+    results = coarse_analysis_batch([text], allow_pos_ctb, allow_pos_pku)
+    return results[0]
 
 
 def fine_coarse_analysis(
@@ -261,10 +374,5 @@ def fine_coarse_analysis(
         allow_pos_ctb: Optional[Set[str]] = None,
         allow_pos_pku: Optional[Set[str]] = None,
 ) -> FineCoarseAnalysisResponse:
-    """
-    同时进行细粒度和粗粒度分词分析
-    """
-    return FineCoarseAnalysisResponse(
-        fine=fine_analysis(text, allow_pos_ctb, allow_pos_pku),
-        coarse=coarse_analysis(text, allow_pos_ctb, allow_pos_pku)
-    )
+    results = fine_coarse_analysis_batch([text], allow_pos_ctb, allow_pos_pku)
+    return results[0]

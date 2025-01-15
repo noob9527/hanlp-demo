@@ -7,7 +7,7 @@ import uvicorn
 from fastapi import FastAPI, APIRouter
 from pydantic import BaseModel
 
-from .analysis.analysis import fine_analysis, coarse_analysis, fine_coarse_analysis
+from .analysis.analysis import fine_analysis, coarse_analysis, fine_coarse_analysis, fine_analysis_batch, coarse_analysis_batch, fine_coarse_analysis_batch
 from .analysis.models import AnalysisReq, AnalysisResponse, \
     FineCoarseAnalysisResponse, BatchAnalysisReq, BatchAnalysisResponse, \
     BatchFineCoarseAnalysisResponse
@@ -49,16 +49,13 @@ def analyze_fine(request: AnalysisReq) -> AnalysisResponse:
 @router.post("/analysis/fine/batch")
 def analyze_fine_batch(request: BatchAnalysisReq) -> BatchAnalysisResponse:
     """
-    使用细粒度分词进行批量分析
+    Use fine-grained tokenization for batch analysis
     """
-    results = [
-        fine_analysis(
-            text=text,
-            allow_pos_ctb=request.allow_pos_ctb,
-            allow_pos_pku=request.allow_pos_pku
-        )
-        for text in request.texts
-    ]
+    results = fine_analysis_batch(
+        texts=request.texts,
+        allow_pos_ctb=request.allow_pos_ctb,
+        allow_pos_pku=request.allow_pos_pku
+    )
     return BatchAnalysisResponse(results=results)
 
 
@@ -77,16 +74,13 @@ def analyze_coarse(request: AnalysisReq) -> AnalysisResponse:
 @router.post("/analysis/coarse/batch")
 def analyze_coarse_batch(request: BatchAnalysisReq) -> BatchAnalysisResponse:
     """
-    使用粗粒度分词进行批量分析
+    Use coarse-grained tokenization for batch analysis
     """
-    results = [
-        coarse_analysis(
-            text=text,
-            allow_pos_ctb=request.allow_pos_ctb,
-            allow_pos_pku=request.allow_pos_pku
-        )
-        for text in request.texts
-    ]
+    results = coarse_analysis_batch(
+        texts=request.texts,
+        allow_pos_ctb=request.allow_pos_ctb,
+        allow_pos_pku=request.allow_pos_pku
+    )
     return BatchAnalysisResponse(results=results)
 
 
@@ -105,16 +99,13 @@ def analyze_fine_coarse(request: AnalysisReq) -> FineCoarseAnalysisResponse:
 @router.post("/analysis/fine-coarse/batch")
 def analyze_fine_coarse_batch(request: BatchAnalysisReq) -> BatchFineCoarseAnalysisResponse:
     """
-    同时进行细粒度和粗粒度分词的批量分析
+    Use both fine and coarse-grained tokenization for batch analysis
     """
-    results = [
-        fine_coarse_analysis(
-            text=text,
-            allow_pos_ctb=request.allow_pos_ctb,
-            allow_pos_pku=request.allow_pos_pku
-        )
-        for text in request.texts
-    ]
+    results = fine_coarse_analysis_batch(
+        texts=request.texts,
+        allow_pos_ctb=request.allow_pos_ctb,
+        allow_pos_pku=request.allow_pos_pku
+    )
     return BatchFineCoarseAnalysisResponse(results=results)
 
 

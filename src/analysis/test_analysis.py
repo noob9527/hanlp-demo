@@ -1,8 +1,9 @@
 import unittest
 
 from src.analysis.analysis import _filter_terms, _filter_named_entities, \
-    fine_analysis, coarse_analysis, fine_coarse_analysis, \
-    _should_use_paragraph_pipeline, TEXT_LENGTH_THRESHOLD, has_gpu
+    fine_analysis_batch, coarse_analysis_batch, fine_coarse_analysis_batch, \
+    _should_use_paragraph_pipeline, TEXT_LENGTH_THRESHOLD, has_gpu, fine_analysis, \
+    coarse_analysis, fine_coarse_analysis
 
 
 class TestAnalysis(unittest.TestCase):
@@ -121,6 +122,105 @@ class TestAnalysis(unittest.TestCase):
         gpu_available = has_gpu()
         print(gpu_available)
         assert isinstance(gpu_available, bool)
+
+    def test_fine_analysis_batch(self):
+        """
+        Test batch processing with fine-grained tokenization
+        """
+        texts = [
+            "英伟达和谷歌是世界知名的科技公司",
+            "苹果公司是一家创新科技企业",
+            "阿里巴巴是中国最大的电商平台"
+        ]
+        results = fine_analysis_batch(texts)
+
+        # Check we got results for all texts
+        self.assertEqual(len(results), len(texts))
+
+        # Check each result has expected structure and content
+        for result in results:
+            self.assertTrue(len(result.terms) > 0)
+            self.assertTrue(len(result.named_entities) > 0)
+
+        # Verify specific entities were found
+        all_entities = [ne.entity for result in results for ne in result.named_entities]
+        expected_entities = ["英伟达", "谷歌", "阿里巴巴"]
+        for entity in expected_entities:
+            self.assertIn(entity, all_entities)
+
+    def test_coarse_analysis_batch(self):
+        """
+        Test batch processing with coarse-grained tokenization
+        """
+        texts = [
+            "更美和美呗是医美行业的竞争对手",
+            "大众点评和天猫都有医美广告",
+            "医美机构需要做广告投放"
+        ]
+        results = coarse_analysis_batch(texts)
+
+        # Check we got results for all texts
+        self.assertEqual(len(results), len(texts))
+
+        # Check each result has expected structure
+        for result in results:
+            self.assertTrue(len(result.terms) > 0)
+
+        print(results)
+
+    def test_fine_coarse_analysis_batch(self):
+        """
+        Test batch processing with both fine and coarse-grained tokenization
+        """
+        texts = [
+            "杭州甘其食是一家连锁包子店",
+            "三津汤包也是知名包子品牌"
+        ]
+        results = fine_coarse_analysis_batch(texts)
+
+        # Check we got results for all texts
+        self.assertEqual(len(results), len(texts))
+
+        # Check each result has both fine and coarse analysis
+        for result in results:
+            # Check fine analysis
+            self.assertTrue(len(result.fine.terms) > 0)
+            # Check coarse analysis
+            self.assertTrue(len(result.coarse.terms) > 0)
+            # Verify fine and coarse give different results
+            fine_tokens = [term.token for term in result.fine.terms]
+            coarse_tokens = [term.token for term in result.coarse.terms]
+            self.assertNotEqual(fine_tokens, coarse_tokens)
+
+    def test_batch_processing_empty_input(self):
+        """
+        Test batch processing with empty input
+        """
+        empty_texts = []
+        fine_results = fine_analysis_batch(empty_texts)
+        coarse_results = coarse_analysis_batch(empty_texts)
+        fine_coarse_results = fine_coarse_analysis_batch(empty_texts)
+
+        self.assertEqual(len(fine_results), 0)
+        self.assertEqual(len(coarse_results), 0)
+        self.assertEqual(len(fine_coarse_results), 0)
+
+    def test_batch_processing_mixed_lengths(self):
+        """
+        Test batch processing with texts of different lengths
+        """
+        texts = [
+            "短文本",  # Short text
+            "这是一个比较长的文本，它的长度超过了阈值。" * 10,  # Long text
+            "又一个短文本"  # Short text
+        ]
+        results = fine_analysis_batch(texts)
+
+        # Check we got results for all texts regardless of length
+        self.assertEqual(len(results), len(texts))
+        # Check each result has terms
+        for result in results:
+            self.assertTrue(len(result.terms) > 0)
 
 
 if __name__ == '__main__':
