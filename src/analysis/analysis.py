@@ -44,23 +44,31 @@ def __sum(sentences: List[str]):
     return sum(sentences, [])
 
 
-def __zip_terms(*args) -> List[Term]:
+def __zip_sentence(*args) -> List[Term]:
+    tok, pos9, posp = args
+    res = []
+    for t, p9, pp in zip(tok, pos9, posp):
+        # token, start, end = t
+        # res.append(Term(
+        #     token=token,
+        #     pos_ctb=p9,
+        #     pos_pku=pp,
+        #     span=(start, end)
+        # ))
+        res.append(Term(
+            token=t,
+            pos_ctb=p9,
+            pos_pku=pp,
+        ))
+    return res
+
+
+def __zip_sentence_batch(*args) -> List[Term]:
     token, pos_ctb9, pos_pku = args
     res = []
     for tok, pos9, posp in zip(token, pos_ctb9, pos_pku):
-        for t, p9, pp in zip(tok, pos9, posp):
-            # token, start, end = t
-            # res.append(Term(
-            #     token=token,
-            #     pos_ctb=p9,
-            #     pos_pku=pp,
-            #     span=(start, end)
-            # ))
-            res.append(Term(
-                token=t,
-                pos_ctb=p9,
-                pos_pku=pp,
-            ))
+        ret = __zip_sentence(tok, pos9, posp)
+        res.extend(ret)
     return res
 
 
@@ -93,7 +101,7 @@ __fine_analysis_pipeline = hanlp.pipeline() \
     .append(__pos_pku, input_key=TOKEN, output_key=POS_PKU) \
     .append(__ner, input_key=TOKEN, output_key=NAMED_ENTITIES) \
     .append(__sum, input_key=NAMED_ENTITIES, output_key=NAMED_ENTITIES) \
-    .append(__zip_terms, input_key=(TOKEN, POS_CTB, POS_PKU),
+    .append(__zip_sentence_batch, input_key=(TOKEN, POS_CTB, POS_PKU),
             output_key=TERMS)
 
 # __fine_analysis_pipeline_with_span = hanlp.pipeline() \
@@ -104,7 +112,7 @@ __fine_analysis_pipeline = hanlp.pipeline() \
 #     .append(__pos_pku, input_key=TOKEN, output_key=POS_PKU) \
 #     .append(__ner, input_key=TOKEN, output_key=NAMED_ENTITIES) \
 #     .append(__sum, input_key=NAMED_ENTITIES, output_key=NAMED_ENTITIES) \
-#     .append(__zip_terms, input_key=(TOKEN_WITH_SPAN, POS_CTB, POS_PKU),
+#     .append(__zip_sentence_batch, input_key=(TOKEN_WITH_SPAN, POS_CTB, POS_PKU),
 #             output_key=TERMS)
 
 __coarse_analysis_pipeline = hanlp.pipeline() \
@@ -114,7 +122,7 @@ __coarse_analysis_pipeline = hanlp.pipeline() \
     .append(__pos_pku, input_key=TOKEN, output_key=POS_PKU) \
     .append(__ner, input_key=TOKEN, output_key=NAMED_ENTITIES) \
     .append(__sum, input_key=NAMED_ENTITIES, output_key=NAMED_ENTITIES) \
-    .append(__zip_terms, input_key=(TOKEN, POS_CTB, POS_PKU),
+    .append(__zip_sentence_batch, input_key=(TOKEN, POS_CTB, POS_PKU),
             output_key=TERMS)
 
 
