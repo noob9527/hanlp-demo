@@ -7,7 +7,8 @@ from pydantic import BaseModel
 
 from .analysis.analysis import fine_analysis, coarse_analysis, fine_coarse_analysis
 from .analysis.models import AnalysisReq, AnalysisResponse, \
-    FineCoarseAnalysisResponse
+    FineCoarseAnalysisResponse, BatchAnalysisReq, BatchAnalysisResponse, \
+    BatchFineCoarseAnalysisResponse
 
 app = FastAPI(title="HanLP Server")
 router = APIRouter(prefix="/api/v1")
@@ -43,6 +44,22 @@ def analyze_fine(request: AnalysisReq) -> AnalysisResponse:
     )
 
 
+@router.post("/analysis/fine/batch")
+def analyze_fine_batch(request: BatchAnalysisReq) -> BatchAnalysisResponse:
+    """
+    使用细粒度分词进行批量分析
+    """
+    results = [
+        fine_analysis(
+            text=text,
+            allow_pos_ctb=request.allow_pos_ctb,
+            allow_pos_pku=request.allow_pos_pku,
+        )
+        for text in request.texts
+    ]
+    return BatchAnalysisResponse(results=results)
+
+
 @router.post("/analysis/coarse")
 def analyze_coarse(request: AnalysisReq) -> AnalysisResponse:
     """
@@ -55,6 +72,22 @@ def analyze_coarse(request: AnalysisReq) -> AnalysisResponse:
     )
 
 
+@router.post("/analysis/coarse/batch")
+def analyze_coarse_batch(request: BatchAnalysisReq) -> BatchAnalysisResponse:
+    """
+    使用粗粒度分词进行批量分析
+    """
+    results = [
+        coarse_analysis(
+            text=text,
+            allow_pos_ctb=request.allow_pos_ctb,
+            allow_pos_pku=request.allow_pos_pku,
+        )
+        for text in request.texts
+    ]
+    return BatchAnalysisResponse(results=results)
+
+
 @router.post("/analysis/fine-coarse")
 def analyze_fine_coarse(request: AnalysisReq) -> FineCoarseAnalysisResponse:
     """
@@ -65,6 +98,22 @@ def analyze_fine_coarse(request: AnalysisReq) -> FineCoarseAnalysisResponse:
         allow_pos_ctb=request.allow_pos_ctb,
         allow_pos_pku=request.allow_pos_pku,
     )
+
+
+@router.post("/analysis/fine-coarse/batch")
+def analyze_fine_coarse_batch(request: BatchAnalysisReq) -> BatchFineCoarseAnalysisResponse:
+    """
+    同时进行细粒度和粗粒度分词的批量分析
+    """
+    results = [
+        fine_coarse_analysis(
+            text=text,
+            allow_pos_ctb=request.allow_pos_ctb,
+            allow_pos_pku=request.allow_pos_pku,
+        )
+        for text in request.texts
+    ]
+    return BatchFineCoarseAnalysisResponse(results=results)
 
 
 def parse_args():

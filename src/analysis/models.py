@@ -24,6 +24,15 @@ class AnalysisReq(BaseModel):
     allow_pos_pku: Optional[Set[str]] = None
 
 
+class BatchAnalysisReq(BaseModel):
+    """
+    Batch version of AnalysisReq for processing multiple texts at once
+    """
+    texts: List[str]
+    allow_pos_ctb: Optional[Set[str]] = None
+    allow_pos_pku: Optional[Set[str]] = None
+
+
 class NamedEntity(BaseModel):
     entity: str
     type: str
@@ -35,9 +44,23 @@ class AnalysisResponse(BaseModel):
     named_entities: Optional[List[NamedEntity]]
 
 
+class BatchAnalysisResponse(BaseModel):
+    """
+    Response model for batch analysis containing results for multiple texts
+    """
+    results: List[AnalysisResponse]
+
+
 class FineCoarseAnalysisResponse(BaseModel):
     """
     同时包含细粒度和粗粒度的分析结果
     """
     fine: AnalysisResponse
     coarse: AnalysisResponse
+
+
+class BatchFineCoarseAnalysisResponse(BaseModel):
+    """
+    Batch version of FineCoarseAnalysisResponse for multiple texts
+    """
+    results: List[FineCoarseAnalysisResponse]
