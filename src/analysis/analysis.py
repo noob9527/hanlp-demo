@@ -275,8 +275,8 @@ def _analysis_batch(
         List of AnalysisResponse objects in the same order as input texts
     """
     # Split texts based on length threshold
-    long_texts = [text for text in texts if _should_use_paragraph_pipeline(text)]
-    short_texts = [text for text in texts if not _should_use_paragraph_pipeline(text)]
+    long_texts = [text for text in texts if len(text.strip()) and _should_use_paragraph_pipeline(text)]
+    short_texts = [text for text in texts if len(text.strip()) and not _should_use_paragraph_pipeline(text)]
 
     analysis_results = {}
 
@@ -302,8 +302,13 @@ def _analysis_batch(
         for text, result in zip(short_texts, batch_results):
             analysis_results[text] = result
 
+    empty_result = AnalysisResponse(
+        terms=[],
+        named_entities=[]
+    )
+
     # Preserve original text order in output
-    return [analysis_results[text] for text in texts]
+    return [analysis_results.get(text, empty_result) for text in texts]
 
 
 def fine_analysis_batch(

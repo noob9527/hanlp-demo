@@ -222,6 +222,41 @@ class TestAnalysis(unittest.TestCase):
         for result in results:
             self.assertTrue(len(result.terms) > 0)
 
+    def test_batch_processing_empty_strings(self):
+        """
+        Test batch processing with a list containing empty strings
+
+        by default, if we don't handle such case,
+        it raises:
+        IndexError: too many indices for tensor of dimension 2
+        """
+        texts = ["", "", ""]  # List of empty strings
+
+        # Test all three batch analysis methods
+        fine_results = fine_analysis_batch(texts)
+        coarse_results = coarse_analysis_batch(texts)
+        fine_coarse_results = fine_coarse_analysis_batch(texts)
+
+        # Check we got results for all texts
+        self.assertEqual(len(fine_results), len(texts))
+        self.assertEqual(len(coarse_results), len(texts))
+        self.assertEqual(len(fine_coarse_results), len(texts))
+
+        # Check that results for empty strings have empty terms and entities
+        for result in fine_results:
+            self.assertEqual(len(result.terms), 0)
+            self.assertEqual(len(result.named_entities), 0)
+
+        for result in coarse_results:
+            self.assertEqual(len(result.terms), 0)
+            self.assertEqual(len(result.named_entities), 0)
+
+        for result in fine_coarse_results:
+            self.assertEqual(len(result.fine.terms), 0)
+            self.assertEqual(len(result.fine.named_entities), 0)
+            self.assertEqual(len(result.coarse.terms), 0)
+            self.assertEqual(len(result.coarse.named_entities), 0)
+
 
 if __name__ == '__main__':
     unittest.main()
