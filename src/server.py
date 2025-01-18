@@ -13,7 +13,7 @@ from .analysis.models import AnalysisReq, AnalysisResponse, \
     BatchFineCoarseAnalysisResponse
 
 app = FastAPI(title="HanLP Server")
-router = APIRouter(prefix="/api/v1")
+router = APIRouter(prefix="/hanlp")
 
 
 # nlp = HanLPUtil()
