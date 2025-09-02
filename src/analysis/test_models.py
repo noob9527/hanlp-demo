@@ -10,7 +10,7 @@ class TestKeywordsAnalysisResponse(unittest.TestCase):
         terms = [
             Term(
                 token="test",
-                pos_ctb9="n",
+                pos_ctb="n",
                 pos_pku="n",
                 # term_frequency=1,
             )
