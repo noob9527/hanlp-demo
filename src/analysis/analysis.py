@@ -1,5 +1,5 @@
 import logging
-from typing import List, Tuple, Optional, Set
+from typing import List, Tuple, Optional, Set, Any
 
 import hanlp
 import torch
@@ -95,12 +95,11 @@ def __zip_sentence_with_span(*args) -> List[Term]:
     tok, pos9, posp = args
     res = []
     for t, p9, pp in zip(tok, pos9, posp):
-        token, start, end = t
         res.append(Term(
-            token=token,
+            token=t[0],
             pos_ctb=p9,
             pos_pku=pp,
-            span=(start, end)
+            span=(t[1], t[2])
         ))
     return res
 
@@ -139,13 +138,13 @@ def _filter_terms(
 def __remove_span(token_with_span):
     res = []
     for items in token_with_span:
-        res.append([token for token, start, end in items])
+        res.append([item[0] for item in items])
     return res
 
 def __token_with_indices(token_fn):
     def __token_with_indices_fn(sent_with_index):
         sents = [item[0] for item in sent_with_index]
-        res = token_fn(sents)
+        res: List[List[List[Any]]] = token_fn(sents)
         for i, items in enumerate(res):
             index = sent_with_index[i][1]
             for item in items:
@@ -153,6 +152,28 @@ def __token_with_indices(token_fn):
                 item[2] = item[2] + index
         return res
     return __token_with_indices_fn
+
+# def __token_with_indices(token_fn):
+#     def __token_with_indices_fn(sent_with_index):
+#         sents = [item[0] for item in sent_with_index]
+#         tmp: List[List[List[Any]]] = token_fn(sents)
+#         for i, items in enumerate(tmp):
+#             offset = sent_with_index[i][1]
+#             for j, item in enumerate(items):
+#                 tmp[i][j] = [item[0], item[1] + offset, item[2] + offset, offset]
+#         return tmp
+#     return __token_with_indices_fn
+
+
+def __ner_with_offset(tokens: List[List[str]]):
+    named_entities: List[List[Tuple[str, str, int, int]]] = __ner(tokens)
+    offset = 0
+    for i, items in enumerate(named_entities):
+        if i > 0:
+            offset += len(tokens[i-1])
+        for j, ne in enumerate(items):
+            named_entities[i][j] = ne[0], ne[1], ne[2] + offset, ne[3] + offset
+    return named_entities
 
 
 # 注意，因为分句会丢失上下文信息，所以可以在一定程度上对分词结果有不好的影响
@@ -174,7 +195,7 @@ __fine_analysis_paragraph_pipeline = hanlp.pipeline() \
     .append(__remove_span, input_key=TOKEN_WITH_SPAN, output_key=TOKEN) \
     .append(__pos_ctb9, input_key=TOKEN, output_key=POS_CTB) \
     .append(__pos_pku, input_key=TOKEN, output_key=POS_PKU) \
-    .append(__ner, input_key=TOKEN, output_key=NAMED_ENTITIES) \
+    .append(__ner_with_offset, input_key=TOKEN, output_key=NAMED_ENTITIES) \
     .append(__sum, input_key=NAMED_ENTITIES, output_key=NAMED_ENTITIES) \
     .append(__zip_for_paragraph, input_key=(TOKEN_WITH_SPAN, POS_CTB, POS_PKU),
             output_key=TERMS)
@@ -205,7 +226,7 @@ __coarse_analysis_paragraph_pipeline = hanlp.pipeline() \
     .append(__remove_span, input_key=TOKEN_WITH_SPAN, output_key=TOKEN) \
     .append(__pos_ctb9, input_key=TOKEN, output_key=POS_CTB) \
     .append(__pos_pku, input_key=TOKEN, output_key=POS_PKU) \
-    .append(__ner, input_key=TOKEN, output_key=NAMED_ENTITIES) \
+    .append(__ner_with_offset, input_key=TOKEN, output_key=NAMED_ENTITIES) \
     .append(__sum, input_key=NAMED_ENTITIES, output_key=NAMED_ENTITIES) \
     .append(__zip_for_paragraph, input_key=(TOKEN_WITH_SPAN, POS_CTB, POS_PKU),
             output_key=TERMS)
@@ -260,24 +281,35 @@ def _process_paragraph(
     """
     处理分析结果，提取terms和named entities
     """
-    terms = _filter_terms(
-        docs[TERMS],
+    terms = docs[TERMS]
+    term_response = _filter_terms(
+        terms,
         allow_pos_ctb=allow_pos_ctb,
         allow_pos_pku=allow_pos_pku
     )
 
-    named_entities = _filter_named_entities(docs[NAMED_ENTITIES])
-    ne_response = [
-        NamedEntity(
+    # named_entities = _filter_named_entities(docs[NAMED_ENTITIES])
+    named_entities = docs[NAMED_ENTITIES]
+    ne_response = []
+    for ne in named_entities:
+        start = terms[ne[2]].span and terms[ne[2]].span[0]
+        # terms[ne[3] - 1]
+        # here we minus 1,
+        # because somehow offset returned by hanlp has 1 offset
+        end = terms[ne[3]].span and terms[ne[3] - 1].span[1]
+        span = None
+        if start is not None and end is not None:
+            span = start, end
+        item = NamedEntity(
             entity=ne[0],
             type=ne[1],
             offset=ne[2:4],
+            span=span
         )
-        for ne in named_entities
-    ]
+        ne_response.append(item)
 
     return AnalysisResponse(
-        terms=terms,
+        terms=term_response,
         named_entities=ne_response
     )
 

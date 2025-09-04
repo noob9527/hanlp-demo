@@ -210,8 +210,10 @@ class TestAnalysis(unittest.TestCase):
         Test batch processing with texts of different lengths
         """
         texts = [
-            "短文本",  # Short text
-            "这是一个比较长的文本，它的长度超过了阈值。" * 10,  # Long text
+            # "短文本",  # Short text
+            "剑桥分析公司多位高管对卧底记者说，他们确保了唐纳德·特朗普在总统大选中获胜。",
+            "剑桥分析公司多位高管对卧底记者说，他们确保了唐纳德·特朗普在总统大选中获胜。" * 10,
+            # "这是一个比较长的文本，它的长度超过了阈值。" * 10,  # Long text
             "又一个短文本"  # Short text
         ]
         results = fine_analysis_batch(texts)

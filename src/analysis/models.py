@@ -37,6 +37,7 @@ class NamedEntity(BaseModel):
     entity: str
     type: str
     offset: Tuple[int, int]
+    span: Tuple[int, int] | None
 
 
 class AnalysisResponse(BaseModel):
