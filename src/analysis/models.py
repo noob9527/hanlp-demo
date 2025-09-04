@@ -7,7 +7,7 @@ class Term(BaseModel):
     token: str
     pos_ctb: str
     pos_pku: str
-    # span: Tuple[int, int]
+    span: Tuple[int, int] | None
 
 
 class AnalysisReq(BaseModel):

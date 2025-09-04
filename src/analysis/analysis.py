@@ -6,6 +6,7 @@ import torch
 
 from src.analysis.models import AnalysisResponse, Term, NamedEntity, \
     FineCoarseAnalysisResponse
+from src.split_sentence import split_sentence_with_index
 
 # Add logging configuration near the top of the file
 logging.basicConfig(level=logging.INFO)
@@ -26,7 +27,7 @@ if has_gpu():
 else:
     logger.info("No GPU detected - models will run on CPU")
 
-# TOKEN_WITH_SPAN = "token_with_span"
+TOKEN_WITH_SPAN = "token_with_span"
 TOKEN = "token"
 POS_CTB = "pos_ctb"
 POS_PKU = "pos_pku"
@@ -60,8 +61,8 @@ logger.info(f"Coarse tokenizer loaded on device: {__tok_coarse.device}")
 # 返回格式为三元组（单词，单词的起始下标，单词的终止下标），下标以字符级别计量。
 # https://github.com/hankcs/HanLP/issues/1802#issuecomment-1399534301
 # 但由于我们会把文本先拆成句子，此时返回位置是句子的位置，因此就作用不大了
-# __tok_fine.config.output_spans = True
-# __tok_coarse.config.output_spans = True
+__tok_fine.config.output_spans = True
+__tok_coarse.config.output_spans = True
 
 __ner = hanlp.load(hanlp.pretrained.ner.MSRA_NER_ELECTRA_SMALL_ZH)
 logger.info(f"NER model loaded on device: {__ner.device}")
@@ -81,17 +82,25 @@ def __zip_sentence(*args) -> List[Term]:
     tok, pos9, posp = args
     res = []
     for t, p9, pp in zip(tok, pos9, posp):
-        # token, start, end = t
-        # res.append(Term(
-        #     token=token,
-        #     pos_ctb=p9,
-        #     pos_pku=pp,
-        #     span=(start, end)
-        # ))
         res.append(Term(
             token=t,
             pos_ctb=p9,
             pos_pku=pp,
+            span=None
+        ))
+    return res
+
+
+def __zip_sentence_with_span(*args) -> List[Term]:
+    tok, pos9, posp = args
+    res = []
+    for t, p9, pp in zip(tok, pos9, posp):
+        token, start, end = t
+        res.append(Term(
+            token=token,
+            pos_ctb=p9,
+            pos_pku=pp,
+            span=(start, end)
         ))
     return res
 
@@ -100,7 +109,7 @@ def __zip_for_paragraph(*args) -> List[Term]:
     token, pos_ctb9, pos_pku = args
     res = []
     for tok, pos9, posp in zip(token, pos_ctb9, pos_pku):
-        ret = __zip_sentence(tok, pos9, posp)
+        ret = __zip_sentence_with_span(tok, pos9, posp)
         res.extend(ret)
     return res
 
@@ -109,7 +118,7 @@ def __zip_for_sentence(*args) -> List[List[Term]]:
     token, pos_ctb9, pos_pku = args
     res = []
     for tok, pos9, posp in zip(token, pos_ctb9, pos_pku):
-        ret = __zip_sentence(tok, pos9, posp)
+        ret = __zip_sentence_with_span(tok, pos9, posp)
         res.append(ret)
     return res
 
@@ -127,31 +136,56 @@ def _filter_terms(
     return res
 
 
-# def __remove_span(token_with_span):
-#     res = []
-#     for items in token_with_span:
-#         res.append([token for token, start, end in items])
-#     return res
+def __remove_span(token_with_span):
+    res = []
+    for items in token_with_span:
+        res.append([token for token, start, end in items])
+    return res
+
+def __token_with_indices(token_fn):
+    def __token_with_indices_fn(sent_with_index):
+        sents = [item[0] for item in sent_with_index]
+        res = token_fn(sents)
+        for i, items in enumerate(res):
+            index = sent_with_index[i][1]
+            for item in items:
+                item[1] = item[1] + index
+                item[2] = item[2] + index
+        return res
+    return __token_with_indices_fn
+
 
 # 注意，因为分句会丢失上下文信息，所以可以在一定程度上对分词结果有不好的影响
 # e.g. 2）大众点评、天猫、百度负责医美广告的； 3）更美、美呗等竞对；
 # 在粗分情况下 2)和3) 在不在一行，决定了"更美""美呗"能否被分对。。
+# __fine_analysis_paragraph_pipeline = hanlp.pipeline() \
+#     .append(hanlp.utils.rules.split_sentence, output_key='sentences') \
+#     .append(__tok_fine, input_key='sentences', output_key=TOKEN_WITH_SPAN) \
+#     .append(__remove_span, input_key=TOKEN_WITH_SPAN, output_key=TOKEN) \
+#     .append(__pos_ctb9, input_key=TOKEN, output_key=POS_CTB) \
+#     .append(__pos_pku, input_key=TOKEN, output_key=POS_PKU) \
+#     .append(__ner, input_key=TOKEN, output_key=NAMED_ENTITIES) \
+#     .append(__sum, input_key=NAMED_ENTITIES, output_key=NAMED_ENTITIES) \
+#     .append(__zip_for_paragraph, input_key=(TOKEN, POS_CTB, POS_PKU),
+#             output_key=TERMS)
 __fine_analysis_paragraph_pipeline = hanlp.pipeline() \
-    .append(hanlp.utils.rules.split_sentence, output_key='sentences') \
-    .append(__tok_fine, input_key='sentences', output_key=TOKEN) \
+    .append(split_sentence_with_index, output_key='sentences_with_indices') \
+    .append(__token_with_indices(__tok_fine), input_key='sentences_with_indices', output_key=TOKEN_WITH_SPAN) \
+    .append(__remove_span, input_key=TOKEN_WITH_SPAN, output_key=TOKEN) \
     .append(__pos_ctb9, input_key=TOKEN, output_key=POS_CTB) \
     .append(__pos_pku, input_key=TOKEN, output_key=POS_PKU) \
     .append(__ner, input_key=TOKEN, output_key=NAMED_ENTITIES) \
     .append(__sum, input_key=NAMED_ENTITIES, output_key=NAMED_ENTITIES) \
-    .append(__zip_for_paragraph, input_key=(TOKEN, POS_CTB, POS_PKU),
+    .append(__zip_for_paragraph, input_key=(TOKEN_WITH_SPAN, POS_CTB, POS_PKU),
             output_key=TERMS)
 
 __fine_analysis_sentence_pipeline = hanlp.pipeline() \
-    .append(__tok_fine, output_key=TOKEN) \
+    .append(__tok_fine, output_key=TOKEN_WITH_SPAN) \
+    .append(__remove_span, input_key=TOKEN_WITH_SPAN, output_key=TOKEN) \
     .append(__pos_ctb9, input_key=TOKEN, output_key=POS_CTB) \
     .append(__pos_pku, input_key=TOKEN, output_key=POS_PKU) \
     .append(__ner, input_key=TOKEN, output_key=NAMED_ENTITIES) \
-    .append(__zip_for_sentence, input_key=(TOKEN, POS_CTB, POS_PKU),
+    .append(__zip_for_sentence, input_key=(TOKEN_WITH_SPAN, POS_CTB, POS_PKU),
             output_key=TERMS)
 
 # __fine_analysis_pipeline_with_span = hanlp.pipeline() \
@@ -166,21 +200,23 @@ __fine_analysis_sentence_pipeline = hanlp.pipeline() \
 #             output_key=TERMS)
 
 __coarse_analysis_paragraph_pipeline = hanlp.pipeline() \
-    .append(hanlp.utils.rules.split_sentence, output_key='sentences') \
-    .append(__tok_coarse, input_key='sentences', output_key=TOKEN) \
+    .append(split_sentence_with_index, output_key='sentences_with_indices') \
+    .append(__token_with_indices(__tok_coarse), input_key='sentences_with_indices', output_key=TOKEN_WITH_SPAN) \
+    .append(__remove_span, input_key=TOKEN_WITH_SPAN, output_key=TOKEN) \
     .append(__pos_ctb9, input_key=TOKEN, output_key=POS_CTB) \
     .append(__pos_pku, input_key=TOKEN, output_key=POS_PKU) \
     .append(__ner, input_key=TOKEN, output_key=NAMED_ENTITIES) \
     .append(__sum, input_key=NAMED_ENTITIES, output_key=NAMED_ENTITIES) \
-    .append(__zip_for_paragraph, input_key=(TOKEN, POS_CTB, POS_PKU),
+    .append(__zip_for_paragraph, input_key=(TOKEN_WITH_SPAN, POS_CTB, POS_PKU),
             output_key=TERMS)
 
 __coarse_analysis_sentence_pipeline = hanlp.pipeline() \
-    .append(__tok_coarse, output_key=TOKEN) \
+    .append(__tok_coarse, output_key=TOKEN_WITH_SPAN) \
+    .append(__remove_span, input_key=TOKEN_WITH_SPAN, output_key=TOKEN) \
     .append(__pos_ctb9, input_key=TOKEN, output_key=POS_CTB) \
     .append(__pos_pku, input_key=TOKEN, output_key=POS_PKU) \
     .append(__ner, input_key=TOKEN, output_key=NAMED_ENTITIES) \
-    .append(__zip_for_sentence, input_key=(TOKEN, POS_CTB, POS_PKU),
+    .append(__zip_for_sentence, input_key=(TOKEN_WITH_SPAN, POS_CTB, POS_PKU),
             output_key=TERMS)
 
 
